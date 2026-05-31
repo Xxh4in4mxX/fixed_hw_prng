@@ -13,21 +13,10 @@ module m_am_rom #(
     assign w_out_num = rom_array[w_sel_sbox][w_in_num];
 endmodule
 
-// testing sequence
-    // initial begin
-        // displaying a sample only
-        // for (int i = 0; i < 10; i ++) begin
-            // $display("%h", rom_array[i][10]);
-        // end
-    // end
-
 module m_sel_sbox(
     input   logic w_clk,
-    // input   logic w_load,
-    // input   logic [511:0] w_data,
     input   logic         w_rst_n,
     input   logic         w_en,
-    // output  logic [511:0] r_out_rnd
     output  logic [13:0]  r_out_rnd
 );
     logic [511:0] q;
@@ -44,43 +33,59 @@ module m_sel_sbox(
             q <= q_left ^ (q | q_right);
         end
     end
-    assign r_out_rnd = q[269:256];
+    assign r_out_rnd = q[13:0];
 endmodule
 
-    // PRNG using rule90's cellular automaton
-    // always @(posedge w_clk) begin
-        // if (w_load)
-            // r_out_rnd <= w_data;
-        // else
-            // r_out_rnd <= {1'b0, r_out_rnd[511:1]} ^ {r_out_rnd[510:0], 1'b0};
-    // end
+// module m_sliding_window_ctrl(
+// )
 
 module m_top(
     input wire w_clk
-    // input wire w_rst_n
 );
-    // signals used for rule90, load and load_data
-    // reg   [511:0]   r_ca_data=512'b0;
-    // reg             r_ca_load=1'b0;
-    // wire  [511:0]   w_ca_state;
-    // wire  [13:0]    w_raw_bits;
-    // reg   [13:0]    r_pattern_sel;
-    wire    w_rst_n_RND;
-    wire    w_en_RND;
+    // Sbox selector signals
     wire    [13:0]  w_raw_bits;
-    reg     [13:0]  r_pattern_sel;
+    wire    [13:0]  w_pattern_sel;
+    // Internal register
+    reg     [127:0] r_state;
+    reg     [6:0]   r_window_pointer;
+    // Next_state_register
+    reg     [7:0]   r_window_out;
+    // Control signal: reset and enable
+    reg     w_rst_n;
+    reg     w_en_RND;
 
     m_sel_sbox mX (
         .w_clk(w_clk),
-        .w_rst_n(w_rst_n_RND),
+        .w_rst_n(w_rst_n),
         .w_en(w_en_RND),
-        .r_out_rnd(w_raw_bits);
+        .r_out_rnd(w_raw_bits)
     );
 
-    always @(*) begin
-        if (w_raw_bits >= 14'd14833)
-            r_pattern_sel = w_raw_bits - 14'd14833;
-        else
-            r_pattern_sel = w_raw_bits;
+    m_am_rom mY (
+        .w_sel_sbox(w_pattern_sel),
+        .w_in_num(r_state[r_window_pointer +: 8]),
+        .w_out_num(r_window_out)
+    );
+
+    // always @(*) begin
+    //     if (w_raw_bits >= 14'd14833)
+    //         w_pattern_sel = w_raw_bits - 14'd14833;
+    //     else
+    //         w_pattern_sel = w_raw_bits;
+    // end
+    assign w_pattern_sel = (w_raw_bits >= 14'd14833) ? w_raw_bits - 14'd14833 : w_raw_bits;
+
+    always @(posedge w_clk) begin
+        if (!w_rst_n) begin
+            r_state <= 128'h8080_8080_8080_8080_8080_8080_8080_8080;
+            r_window_pointer <= 7'h0;
+        end else if (w_en_RND) begin
+            r_state[r_window_pointer +: 8] <= r_window_out;
+            if (r_window_pointer >= 7'd120) begin
+                r_window_pointer <= 7'd0;
+            end else begin
+                r_window_pointer <= r_window_pointer + 7'd1;
+            end
+        end
     end
 endmodule

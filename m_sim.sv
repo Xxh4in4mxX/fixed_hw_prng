@@ -3,19 +3,18 @@ module m_sim(w_clk, w_cc);
     input wire w_clk;
     input wire [31:0] w_cc;
     m_top m(w_clk);
-    initial #49 begin
-        // data used for rule90's load and data
-        // m.r_ca_load <= 1'b1;
-        // m.r_ca_data <= {512{1'b1}};
-        m.w_rst_n_RND = 
+    initial begin
+        m.w_rst_n <= 1'b0;
+        m.w_en_RND   <= 1'b0;
     end
 
     initial #99 forever #100 begin 
-        $display("CC%1d %d",
-    w_cc, m.r_pattern_sel);
+        $display("CC%1d %h",
+    w_cc, m.r_state);
     end
-    initial #101 begin
-        m.r_ca_load <= 1'b0;
-        m.r_ca_data <= 512'h0;
+    
+    initial #150 begin
+        m.w_rst_n <= 1'b1;
+        m.w_en_RND <= 1'b1;
     end
 endmodule
