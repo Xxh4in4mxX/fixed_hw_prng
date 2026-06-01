@@ -127,6 +127,26 @@ void export_sbox_to_mem(const char *filename) {
     printf("Written to: %s\n", filename);
 }
 
+// Hàm xuất chỉnh hợp sang mem
+void export_derangements_to_mem(const char *filename) {
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        printf("Can't open %s\n", filename);
+        return;
+    }
+    for (int i = 0; i < TOTAL_DERANGEMENT; i++) {
+        unsigned int packed_word = 0;
+        for (int j = 0; j < N; j++) {
+            // fprintf(file, "%1X", return_der_arr[i][j]);
+            // if (j < N - 1) fprintf(file, " ");
+            packed_word |= ((unsigned int) return_der_arr[i][j] & 0x7)<<(j*3);
+        }
+        fprintf(file, "%06X\n", packed_word);
+    }
+    fclose(file);
+    printf("Written to: %s\n", filename);
+}
+
 int main() {
     // 1. Chạy hàm sinh hoán vị để nạp đầy dữ liệu vào return_permute_arr
     generate_all_permutations();
@@ -135,6 +155,8 @@ int main() {
     // 3. Chạy hàm sinh S-box để nạp đầy dữ liệu vào return_sbox_arr
     generate_s_box();
     // 4. Viết data vào tệp .mem
-    export_sbox_to_mem("sbox_patterns.mem");
+    // export_sbox_to_mem("sbox_patterns.mem");
+    // 4 (alternative). Viết data rút gọn vào tệp .mem
+    export_derangements_to_mem("raw_perm_rules.mem");
     return 0;
 }

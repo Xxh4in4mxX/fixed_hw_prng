@@ -13,6 +13,7 @@ module m_am_rom #(
     assign w_out_num = rom_array[w_sel_sbox][w_in_num];
 endmodule
 
+
 module m_sel_sbox(
     input   logic w_clk,
     input   logic         w_rst_n,
@@ -36,56 +37,103 @@ module m_sel_sbox(
     assign r_out_rnd = q[13:0];
 endmodule
 
-// module m_sliding_window_ctrl(
-// )
-
-module m_top(
-    input wire w_clk
+//  ADD MODULE: perm_rule_rom
+module perm_rule_rom #(
+    parameter int NUM_PATTERNS = 14833
+)(
+    input  wire [13:0]  pattern_sel, // rand_number in range 0~14833
+    output reg  [23:0]  perm_rule    // flattened 24_bit bus (8ports * 3bits)
+    // output reg  [2:0]   dest_pointers [0:7] // 8(0-7) nhóm 3-bits(0_2) indice
 );
-    // Sbox selector signals
-    wire    [13:0]  w_raw_bits;
-    wire    [13:0]  w_pattern_sel;
-    // Internal register
-    reg     [127:0] r_state;
-    reg     [6:0]   r_window_pointer;
-    // Next_state_register
-    reg     [7:0]   r_window_out;
-    // Control signal: reset and enable
-    reg     w_rst_n;
-    reg     w_en_RND;
+    logic [23:0] rom_array [0:NUM_PATTERNS-1]; // table of 14833 data lines, sized 24 bits
 
-    m_sel_sbox mX (
-        .w_clk(w_clk),
-        .w_rst_n(w_rst_n),
-        .w_en(w_en_RND),
-        .r_out_rnd(w_raw_bits)
-    );
+    // wire  [23:0] packed_rule = rom_array[pattern_sel]; // chọn một dòng 24 bits từ ROM, gán vào
+    assign perm_rule = rom_array[pattern_sel];
 
-    m_am_rom mY (
-        .w_sel_sbox(w_pattern_sel),
-        .w_in_num(r_state[r_window_pointer +: 8]),
-        .w_out_num(r_window_out)
-    );
-
-    // always @(*) begin
-    //     if (w_raw_bits >= 14'd14833)
-    //         w_pattern_sel = w_raw_bits - 14'd14833;
-    //     else
-    //         w_pattern_sel = w_raw_bits;
+    // always_comb begin
+    //     for (int i = 0; i < 8; i ++) begin
+    //         dest_pointers[i] = packed_rule[i*3 +: 3];
+    //         // mỗi dest_pointer[x] là một index
+    //         // 24-bits packed_rule là 8 cái index
+    //     end
     // end
-    assign w_pattern_sel = (w_raw_bits >= 14'd14833) ? w_raw_bits - 14'd14833 : w_raw_bits;
-
-    always @(posedge w_clk) begin
-        if (!w_rst_n) begin
-            r_state <= 128'h8080_8080_8080_8080_8080_8080_8080_8080;
-            r_window_pointer <= 7'h0;
-        end else if (w_en_RND) begin
-            r_state[r_window_pointer +: 8] <= r_window_out;
-            if (r_window_pointer >= 7'd120) begin
-                r_window_pointer <= 7'd0;
-            end else begin
-                r_window_pointer <= r_window_pointer + 7'd1;
-            end
-        end
+    initial begin
+        $readmemh("raw_perm_rules.mem", rom_array);
     end
 endmodule
+// ADDED perm_rule_rom
+
+// ADD m_top_parallel
+module m_top_parallel (
+    input logic w_clk
+);
+    logic [127:0] r_state;
+    wire  [127:0] w_parallel_out;
+
+    wire  [13:0]  w_raw_bits;
+    wire  [13:0]  w_pattern_sel;
+    wire  [23:0]  w_perm_rule; 
+
+    logic w_rst_n=1'b0;
+    logic w_en_RND=1'b0;
+
+    // 1. Khởi tạo selector core
+    m_sel_sbox mX (
+        .w_clk     (w_clk),
+        .w_rst_n   (w_rst_n),
+        .w_en      (w_en_RND),
+        .r_out_rnd (w_raw_bits)
+    );
+
+    assign w_pattern_sel = (w_raw_bits >= 14'd14833) ? (w_raw_bits - 14'd14833) : w_raw_bits;
+
+    // 2. Khởi tạo ROM cấu trúc phẳng
+    perm_rule_rom m_rom (
+        .pattern_sel (w_pattern_sel),
+        .perm_rule   (w_perm_rule)
+    );
+
+    // 3. Tách luật cấu trúc phẳng 24-bit thành 8 đường dây con trỏ tĩnh bằng genvar
+    wire [23:0] w_d_ptr_flat;
+    genvar p;
+    generate
+        for (p = 0; p < 8; p = p + 1) begin : UNPACK_ROUTING
+            assign w_d_ptr_flat[p*3 +: 3] = w_perm_rule[p*3 +: 3];
+        end
+    endgenerate
+
+    // 4. Mạch hoán vị bit song song (16 Blocks) dùng hoàn toàn assign
+    genvar b, o;
+    generate
+        for (b = 0; b < 16; b = b + 1) begin : BMAPPED_BLOCKS
+            wire [7:0] block_in = r_state[b*8 +: 8];
+            wire [7:0] block_out;
+
+            // Unroll mạch tổ hợp bằng các cổng logic chọn (MUX) thay vì luôn luôn_comb
+            for (o = 0; o < 8; o = o + 1) begin : BIT_MAPPING
+                assign block_out[o] = (w_d_ptr_flat[0*3 +: 3] == o[2:0]) ? block_in[0] :
+                                      (w_d_ptr_flat[1*3 +: 3] == o[2:0]) ? block_in[1] :
+                                      (w_d_ptr_flat[2*3 +: 3] == o[2:0]) ? block_in[2] :
+                                      (w_d_ptr_flat[3*3 +: 3] == o[2:0]) ? block_in[3] :
+                                      (w_d_ptr_flat[4*3 +: 3] == o[2:0]) ? block_in[4] :
+                                      (w_d_ptr_flat[5*3 +: 3] == o[2:0]) ? block_in[5] :
+                                      (w_d_ptr_flat[6*3 +: 3] == o[2:0]) ? block_in[6] :
+                                      (w_d_ptr_flat[7*3 +: 3] == o[2:0]) ? block_in[7] : 1'b0;
+            end
+
+            assign w_parallel_out[b*8 +: 8] = block_out;
+        end
+    endgenerate
+
+    // 5. Cập nhật thanh ghi trạng thái đồng bộ
+    always_ff @(posedge w_clk) begin
+        if (!w_rst_n) begin
+            r_state <= 128'h0480_8080_0480_8080_4080_8080_4080_8080;
+        end else if (w_en_RND) begin
+            r_state <= w_parallel_out;
+        end
+    end
+
+endmodule
+// ADDED m_top_parallel
+
