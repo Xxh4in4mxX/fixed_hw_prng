@@ -1,19 +1,3 @@
-module m_am_rom #(
-    parameter   int NUM_SBOX   = 14833,
-    localparam  int SBOX_SIZE  = 256
-)(
-    input   wire [13:0] w_sel_sbox,
-    input   wire [7:0]  w_in_num,
-    output  wire [7:0]  w_out_num
-);
-    logic [7:0] rom_array [0:NUM_SBOX-1][0:SBOX_SIZE-1];
-    initial begin
-        $readmemh("sbox_patterns.mem", rom_array);
-    end
-    assign w_out_num = rom_array[w_sel_sbox][w_in_num];
-endmodule
-
-
 module m_sel_sbox(
     input   logic w_clk,
     input   logic         w_rst_n,
@@ -104,14 +88,15 @@ module m_top_parallel (
             // Unroll mạch tổ hợp bằng các cổng logic chọn (MUX) thay vì luôn luôn_comb
             // variable o chạy từ 0 đến 7 đại diện cho mỗi bit output, chúng ta sẽ chọn bit nào từ block_in để đưa vào block_out[o] dựa trên w_d_ptr_flat
             for (o = 0; o < 8; o = o + 1) begin : BIT_MAPPING
-                assign block_out[o] = (w_d_ptr_flat[0*3 +: 3] == o[2:0]) ? block_in[0] :
-                                      (w_d_ptr_flat[1*3 +: 3] == o[2:0]) ? block_in[1] :
-                                      (w_d_ptr_flat[2*3 +: 3] == o[2:0]) ? block_in[2] :
-                                      (w_d_ptr_flat[3*3 +: 3] == o[2:0]) ? block_in[3] :
-                                      (w_d_ptr_flat[4*3 +: 3] == o[2:0]) ? block_in[4] :
-                                      (w_d_ptr_flat[5*3 +: 3] == o[2:0]) ? block_in[5] :
-                                      (w_d_ptr_flat[6*3 +: 3] == o[2:0]) ? block_in[6] :
-                                      (w_d_ptr_flat[7*3 +: 3] == o[2:0]) ? block_in[7] : 1'b0;
+                localparam int offset = (b*3) % 24;
+                assign block_out[o] = (w_d_ptr_flat[(0*3+offset)%24 +: 3] == o[2:0]) ? block_in[0] :
+                                      (w_d_ptr_flat[(1*3+offset)%24 +: 3] == o[2:0]) ? block_in[1] :
+                                      (w_d_ptr_flat[(2*3+offset)%24 +: 3] == o[2:0]) ? block_in[2] :
+                                      (w_d_ptr_flat[(3*3+offset)%24 +: 3] == o[2:0]) ? block_in[3] :
+                                      (w_d_ptr_flat[(4*3+offset)%24 +: 3] == o[2:0]) ? block_in[4] :
+                                      (w_d_ptr_flat[(5*3+offset)%24 +: 3] == o[2:0]) ? block_in[5] :
+                                      (w_d_ptr_flat[(6*3+offset)%24 +: 3] == o[2:0]) ? block_in[6] :
+                                      (w_d_ptr_flat[(7*3+offset)%24 +: 3] == o[2:0]) ? block_in[7] : 1'b0;
             end
 
             assign w_parallel_out[b*8 +: 8] = block_out;
@@ -122,7 +107,7 @@ module m_top_parallel (
     always_ff @(posedge w_clk) begin
         if (!w_rst_n) begin
             // r_state <= 128'h0480_8080_0480_8080_4080_8080_4080_8080;
-            r_state <= 128'hF000_f000_0000_0000_f000_0000_f000_0000;
+            r_state <= 128'hf000_f000_0000_0000_f000_0000_f000_0000;
         end else if (w_en_RND) begin
             r_state <= {w_parallel_out[6:0], w_parallel_out[127:7]};
         end
