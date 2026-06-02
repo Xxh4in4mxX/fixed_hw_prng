@@ -50,13 +50,6 @@ module perm_rule_rom #(
     // wire  [23:0] packed_rule = rom_array[pattern_sel]; // chọn một dòng 24 bits từ ROM, gán vào
     assign perm_rule = rom_array[pattern_sel];
 
-    // always_comb begin
-    //     for (int i = 0; i < 8; i ++) begin
-    //         dest_pointers[i] = packed_rule[i*3 +: 3];
-    //         // mỗi dest_pointer[x] là một index
-    //         // 24-bits packed_rule là 8 cái index
-    //     end
-    // end
     initial begin
         $readmemh("raw_perm_rules.mem", rom_array);
     end
@@ -108,7 +101,6 @@ module m_top_parallel (
         for (b = 0; b < 16; b = b + 1) begin : BMAPPED_BLOCKS
             wire [7:0] block_in = r_state[b*8 +: 8]; // block_in = 8-bit trong r_state
             wire [7:0] block_out;
-
             // Unroll mạch tổ hợp bằng các cổng logic chọn (MUX) thay vì luôn luôn_comb
             // variable o chạy từ 0 đến 7 đại diện cho mỗi bit output, chúng ta sẽ chọn bit nào từ block_in để đưa vào block_out[o] dựa trên w_d_ptr_flat
             for (o = 0; o < 8; o = o + 1) begin : BIT_MAPPING
@@ -135,7 +127,5 @@ module m_top_parallel (
             r_state <= {w_parallel_out[6:0], w_parallel_out[127:7]};
         end
     end
-
 endmodule
 // ADDED m_top_parallel
-
