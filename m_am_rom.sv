@@ -128,9 +128,10 @@ module m_top_parallel (
     // 5. Cập nhật thanh ghi trạng thái đồng bộ
     always_ff @(posedge w_clk) begin
         if (!w_rst_n) begin
-            r_state <= 128'h0480_8080_0480_8080_4080_8080_4080_8080;
+            // r_state <= 128'h0480_8080_0480_8080_4080_8080_4080_8080;
+            r_state <= 128'hF000_f000_0000_0000_f000_0000_f000_0000;
         end else if (w_en_RND) begin
-            r_state <= w_parallel_out;
+            r_state <= {w_parallel_out[6:0], w_parallel_out[127:7]};
         end
     end
 
