@@ -135,10 +135,10 @@ void export_derangements_to_mem(const char *filename) {
         return;
     }
     for (int i = 0; i < TOTAL_DERANGEMENT; i++) {
+        // A packed word is one derangement row e.g [7, 6, 5, 4, 3, 2, 1, 0] -> 0x76543210
         unsigned int packed_word = 0;
         for (int j = 0; j < N; j++) {
-            // fprintf(file, "%1X", return_der_arr[i][j]);
-            // if (j < N - 1) fprintf(file, " ");
+            // return_del_arr[i][j] is 3-bit value, so we mask with 0b111 (0x7) to ensure only 3 bits are used, then shift left by j*3 to pack into the correct position in the 24-bit word
             packed_word |= ((unsigned int) return_der_arr[i][j] & 0x7)<<(j*3);
         }
         fprintf(file, "%06X\n", packed_word);

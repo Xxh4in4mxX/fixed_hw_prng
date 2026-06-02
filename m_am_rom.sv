@@ -98,7 +98,7 @@ module m_top_parallel (
     genvar p;
     generate
         for (p = 0; p < 8; p = p + 1) begin : UNPACK_ROUTING
-            assign w_d_ptr_flat[p*3 +: 3] = w_perm_rule[p*3 +: 3];
+            assign w_d_ptr_flat[p*3 +: 3] = w_perm_rule[p*3 +: 3]; // w_d_ptr_flat[0:2] is a number from 0 to 7, indicating which bit of the block goes to output bit 0, w_d_ptr_flat[3:5] for output bit 1, etc.
         end
     endgenerate
 
@@ -106,10 +106,11 @@ module m_top_parallel (
     genvar b, o;
     generate
         for (b = 0; b < 16; b = b + 1) begin : BMAPPED_BLOCKS
-            wire [7:0] block_in = r_state[b*8 +: 8];
+            wire [7:0] block_in = r_state[b*8 +: 8]; // block_in = 8-bit trong r_state
             wire [7:0] block_out;
 
             // Unroll mạch tổ hợp bằng các cổng logic chọn (MUX) thay vì luôn luôn_comb
+            // variable o chạy từ 0 đến 7 đại diện cho mỗi bit output, chúng ta sẽ chọn bit nào từ block_in để đưa vào block_out[o] dựa trên w_d_ptr_flat
             for (o = 0; o < 8; o = o + 1) begin : BIT_MAPPING
                 assign block_out[o] = (w_d_ptr_flat[0*3 +: 3] == o[2:0]) ? block_in[0] :
                                       (w_d_ptr_flat[1*3 +: 3] == o[2:0]) ? block_in[1] :

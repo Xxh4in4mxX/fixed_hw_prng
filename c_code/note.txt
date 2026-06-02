@@ -1,0 +1,6 @@
+HOW TO CREATE .MEM FILE
+-- CONNECT ALL  --8-- DERANGEMENT ELEMENTS TO A 24-BITS ROW
+-- EG: lets say i have a .mem file with this data format
+    7 6 5 4 3 2 1 0 -> 
+    $readmemh -> Read memory from textfile of hex values
+    
