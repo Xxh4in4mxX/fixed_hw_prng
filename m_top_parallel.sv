@@ -1,5 +1,5 @@
 module m_sel_sbox(
-    input   logic w_clk,
+    input   logic         w_clk,
     input   logic         w_rst_n,
     input   logic         w_en,
     output  logic [13:0]  r_out_rnd
@@ -42,7 +42,10 @@ endmodule
 
 // ADD m_top_parallel
 module m_top_parallel (
-    input logic w_clk
+    input   logic            w_clk,
+    input   logic            w_rst_n,
+    input   logic            w_en_RND,
+    output  logic [127:0]    w_rnd_state
 );
     logic [127:0] r_state;
     wire  [127:0] w_parallel_out;
@@ -51,9 +54,6 @@ module m_top_parallel (
     wire  [13:0]  w_pattern_sel;
     wire  [23:0]  w_perm_rule; 
 
-    logic w_rst_n=1'b0;
-    logic w_en_RND=1'b0;
-
     // 1. Khởi tạo selector core
     m_sel_sbox mX (
         .w_clk     (w_clk),
@@ -61,9 +61,7 @@ module m_top_parallel (
         .w_en      (w_en_RND),
         .r_out_rnd (w_raw_bits)
     );
-
     assign w_pattern_sel = (w_raw_bits >= 14'd14833) ? (w_raw_bits - 14'd14833) : w_raw_bits;
-
     // 2. Khởi tạo ROM cấu trúc phẳng
     perm_rule_rom m_rom (
         .pattern_sel (w_pattern_sel),
@@ -78,7 +76,6 @@ module m_top_parallel (
             assign w_d_ptr_flat[p*3 +: 3] = w_perm_rule[p*3 +: 3]; // w_d_ptr_flat[0:2] is a number from 0 to 7, indicating which bit of the block goes to output bit 0, w_d_ptr_flat[3:5] for output bit 1, etc.
         end
     endgenerate
-
     // 4. Mạch hoán vị bit song song (16 Blocks) dùng hoàn toàn assign
     genvar b, o;
     generate
@@ -98,11 +95,9 @@ module m_top_parallel (
                                       (w_d_ptr_flat[(6*3+offset)%24 +: 3] == o[2:0]) ? block_in[6] :
                                       (w_d_ptr_flat[(7*3+offset)%24 +: 3] == o[2:0]) ? block_in[7] : 1'b0;
             end
-
             assign w_parallel_out[b*8 +: 8] = block_out;
         end
     endgenerate
-
     // 5. Cập nhật thanh ghi trạng thái đồng bộ
     always_ff @(posedge w_clk) begin
         if (!w_rst_n) begin
@@ -112,5 +107,7 @@ module m_top_parallel (
             r_state <= {w_parallel_out[6:0], w_parallel_out[127:7]};
         end
     end
+    // STATE_REG -> PHY_OUT
+    assign w_rnd_state = r_state;
 endmodule
 // ADDED m_top_parallel
